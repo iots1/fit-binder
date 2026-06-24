@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "target": "ES2023",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictNullChecks": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": false,
+    "strictBindCallApply": false,
+    "noFallthroughCasesInSwitch": false,
+    "strictPropertyInitialization": false,
+    "types": ["node", "jest"],
+    "paths": {
+      "@apps/*": ["apps/*"],
+      "@lib/common": ["libs/common/src"],
+      "@lib/common/*": ["libs/common/src/*"],
+      "@lib/config": ["libs/config/src"],
+      "@lib/config/*": ["libs/config/src/*"],
+      "@lib/database": ["libs/database/src"],
+      "@lib/database/*": ["libs/database/src/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}

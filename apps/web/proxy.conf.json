@@ -1,0 +1,32 @@
+{
+  "/api/auth": {
+    "target": "http://localhost:3001",
+    "pathRewrite": { "^/api": "" },
+    "changeOrigin": true,
+    "secure": false
+  },
+  "/api/trainer": {
+    "target": "http://localhost:3002",
+    "pathRewrite": { "^/api": "" },
+    "changeOrigin": true,
+    "secure": false
+  },
+  "/api/trainee": {
+    "target": "http://localhost:3003",
+    "pathRewrite": { "^/api": "" },
+    "changeOrigin": true,
+    "secure": false
+  },
+  "/api/package": {
+    "target": "http://localhost:3004",
+    "pathRewrite": { "^/api": "" },
+    "changeOrigin": true,
+    "secure": false
+  },
+  "/api/appointment": {
+    "target": "http://localhost:3005",
+    "pathRewrite": { "^/api": "" },
+    "changeOrigin": true,
+    "secure": false
+  }
+}

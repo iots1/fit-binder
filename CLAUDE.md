@@ -25,9 +25,22 @@ Swagger/Scalar API docs, Jest. Frontend: Angular (in `apps/web`).
 ### Monorepo
 
 ```
-apps/   auth | trainer-bc | trainee-bc | package-bc | appointment-bc | web (Angular)
-libs/   common | config | database
+apps/   auth | trainer-bc | trainee-bc | package-bc | appointment-bc   # NestJS (nest-cli + webpack)
+        web                                                            # Angular 22 (standalone Angular CLI app)
+libs/   common | config | database     # backend-only (Nest/TypeORM)
+        contracts                      # framework-agnostic TS types shared by web + backend
 ```
+
+**Node**: use the version in `.nvmrc` (`nvm use`). Angular 22 needs Node ≥ 24.15.
+
+### Frontend (`apps/web`)
+
+Standalone Angular CLI app with its own `package.json` / `angular.json` (run
+`pnpm --dir apps/web ...`, or `pnpm start:web` / `pnpm build:web` from the root).
+It imports shared types from `@contracts` (mapped to `libs/contracts/src` in
+`apps/web/tsconfig.json`) — never `@lib/common` (that would pull Nest/TypeORM into
+the browser bundle). The dev server proxies `/api/<bc>/*` to each BC's HTTP port
+via `apps/web/proxy.conf.json`.
 
 ### Bounded Context Rules
 

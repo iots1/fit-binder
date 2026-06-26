@@ -1,7 +1,6 @@
 import {
     BadRequestException,
     ConflictException,
-    InternalServerErrorException,
     NotFoundException,
 } from '@nestjs/common';
 
@@ -29,8 +28,9 @@ import { IPagination } from '@lib/common/interfaces/response/pagination.interfac
 import { IResponsePaginatedService } from '@lib/common/interfaces/response/response-service.interface';
 import { ISoftDeletable } from '@lib/common/interfaces/soft-deletable.interface';
 import { ITimestamp } from '@lib/common/interfaces/timestamp.interface';
-import { Logger } from '@lib/common/modules/log/abstracts/logger.abstract';
+import { ILogger } from '@lib/common/modules/log/abstracts/logger.abstract';
 import { LogsService, NoOpLogsService } from '@lib/common/modules/log/logs.service';
+import { PostgresErrorMapper } from '@lib/common/utils/http-exception/postgres-error-mapper.util';
 
 import { TypeOrmQueryBuilder } from './typeorm-query-builder.util';
 
@@ -82,7 +82,7 @@ export abstract class BaseServiceOperations<
     // config about log info
     protected readonly serviceName?: string;
     protected readonly serviceVersion?: string;
-    protected readonly logger: LogsService | NoOpLogsService;
+    protected readonly logger: ILogger;
 
     /**
      * @description
@@ -198,7 +198,7 @@ export abstract class BaseServiceOperations<
             findOptions.where = findOptions.where.map((condition) => ({
                 ...this.softDeleteFilter,
                 ...condition,
-            })) as FindOptionsWhere<TargetRepository>[];
+            }));
         } else {
             // Case 2: where is an object (AND conditions from query.s/filter)
             findOptions.where = {
@@ -259,7 +259,7 @@ export abstract class BaseServiceOperations<
             findOptions.where = findOptions.where.map((condition) => ({
                 ...this.softDeleteFilter,
                 ...condition,
-            })) as FindOptionsWhere<TargetRepository>[];
+            }));
         } else {
             // Case 2: where is an object (AND conditions from query.s/filter)
             findOptions.where = {
@@ -459,7 +459,7 @@ export abstract class BaseServiceOperations<
         // ใช้ Type Assertion เพื่อแก้ปัญหา Generic Overload ของ TypeORM
         return this.typeOrmRepository.save(
             entitiesToSave as DeepPartial<TargetRepository>[],
-        ) as unknown as Promise<TargetRepository[]>;
+        );
     }
 
     /**
@@ -547,7 +547,7 @@ export abstract class BaseServiceOperations<
         const updatePromises = toUpdate.map((data) => {
             const preloadData = userId !== undefined ? { ...data, updated_by: userId } : data;
 
-            return this.typeOrmRepository.preload(preloadData as DeepPartial<TargetRepository>);
+            return this.typeOrmRepository.preload(preloadData);
         });
 
         const results = await Promise.all(updatePromises);
@@ -556,7 +556,7 @@ export abstract class BaseServiceOperations<
         // ใช้การตรวจสอบความมีอยู่จริงและ Cast กลับเป็น TargetRepository[] โดยตรง
         return results.filter(
             (entity) => entity !== undefined && entity !== null,
-        ) as TargetRepository[];
+        );
     }
 
     /**
@@ -603,25 +603,17 @@ export abstract class BaseServiceOperations<
     // ===================================================================================
 
     /**
-     * @description
-     * A wrapper function that executes all database operations.
-     * It provides centralized error handling for common database exceptions.
-     * @param operation - A function that returns a Promise of the database operation result.
-     * @returns The result of the database operation.
+     * Executes a database operation and maps driver-level errors to HTTP exceptions.
+     * Postgres-specific error translation is delegated to {@link PostgresErrorMapper} (OCP).
      */
     protected async executeDbOperation<T>(operation: () => Promise<T>): Promise<T> {
         try {
             return await operation();
         } catch (error) {
-            if (error instanceof BadRequestException) {
-                throw error;
-            }
+            if (error instanceof BadRequestException) throw error;
 
             if (error instanceof EntityPropertyNotFoundError) {
-                throw new BadRequestException({
-                    code: 'INVALID_PROPERTY',
-                    message: error.message,
-                });
+                throw new BadRequestException({ code: 'INVALID_PROPERTY', message: error.message });
             }
 
             if (error instanceof OptimisticLockVersionMismatchError) {
@@ -632,188 +624,10 @@ export abstract class BaseServiceOperations<
             }
 
             if (error instanceof QueryFailedError) {
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-                const driverError = error.driverError;
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                console.error(`Database Error Code: ${driverError?.code}`, driverError);
-
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                switch (driverError?.code) {
-                    // Postgres error code for unique constraint violation.
-                    case '23505': {
-                        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                        const constraintName = driverError.constraint as string | undefined;
-                        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                        const pgDetail = driverError.detail as string | undefined;
-
-                        this.logger.error(
-                            `[DB Constraint Violation] Unique constraint violation in ${this.tableName}`,
-                            error,
-                            {
-                                detail: pgDetail,
-                                code: '23505',
-                                table: this.tableName,
-                                constraint: constraintName,
-                            },
-                        );
-
-                        // Postgres detail format: "Key (col1, col2)=(val1, val2) already exists."
-                        // Extract column names directly — more reliable than parsing the constraint name.
-                        const columnMatch = pgDetail?.match(/Key \(([^)]+)\)=/);
-                        let errorMessage: string;
-
-                        if (columnMatch?.[1] != null) {
-                            const columns = columnMatch[1]
-                                .split(',')
-                                .map((c) => c.trim().replace(/_/g, ' '))
-                                .join(' and ');
-                            errorMessage = `A record with this ${columns} already exists.`;
-                        } else {
-                            errorMessage = 'A record with the provided details already exists.';
-                        }
-
-                        throw new ConflictException({
-                            code: '23505',
-                            message: errorMessage,
-                        });
-                    }
-                    // Postgres error code for foreign key violation.
-                    case '23503': {
-                        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                        const fkConstraintName = driverError.constraint as string | undefined;
-                        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                        const fkDetail = (driverError.detail as string) ?? '';
-                        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                        const fkTable = (driverError.table as string) ?? this.tableName;
-
-                        this.logger.error(
-                            `[DB Constraint Violation] Foreign key violation in ${fkTable}`,
-                            error,
-                            {
-                                detail: fkDetail,
-                                code: '23503',
-                                table: fkTable,
-                                constraint: fkConstraintName,
-                            },
-                        );
-
-                        // DELETE blocked: "Key (id)=(x) is still referenced from table "xxx""
-                        if (fkDetail.includes('is still referenced from table')) {
-                            const referencedTable = fkDetail.match(
-                                /is still referenced from table "(\w+)"/,
-                            );
-                            const friendlyTable =
-                                referencedTable?.[1]?.replace(/_/g, ' ') ?? 'another record';
-
-                            throw new ConflictException({
-                                code: '23503',
-                                message: `Cannot delete this ${fkTable.replace(/_/g, ' ')} because it is still referenced by ${friendlyTable}.`,
-                            });
-                        }
-
-                        // INSERT/UPDATE: referenced record does not exist
-                        const fkErrorMessage =
-                            fkConstraintName !== undefined
-                                ? `Invalid reference for '${fkConstraintName.replace(/^fk_.*?_/, '').replace(/_/g, ' ')}'. The referenced record does not exist.`
-                                : `Invalid reference to another record. Please check your input.`;
-
-                        throw new BadRequestException({
-                            code: '23503',
-                            message: fkErrorMessage,
-                        });
-                    }
-                    // Postgres error code for not-null violation.
-                    case '23502': {
-                        // Extract column name from error
-                        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                        const columnName = driverError.column as string | undefined;
-
-                        // Log full details internally for debugging
-                        this.logger.error(
-                            `[DB Constraint Violation] NOT NULL violation in ${this.tableName}`,
-                            error,
-                            {
-                                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                                detail: driverError.detail,
-                                code: '23502',
-                                table: this.tableName,
-                                column: columnName,
-                            },
-                        );
-
-                        const errorMessage =
-                            columnName !== undefined
-                                ? `Required field '${columnName}' cannot be empty.`
-                                : `A required field was left empty. Please check your input.`;
-
-                        throw new BadRequestException({
-                            code: '23502',
-                            message: errorMessage,
-                        });
-                    }
-                    // Postgres error code for invalid text representation (e.g., wrong UUID format).
-                    case '22P02':
-                        // Log full details internally for debugging
-                        this.logger.error(
-                            `[DB Constraint Violation] Invalid text representation in ${this.tableName}`,
-                            error,
-                            {
-                                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                                detail: driverError.detail,
-                                code: '22P02',
-                                table: this.tableName,
-                            },
-                        );
-                        throw new BadRequestException({
-                            code: '22P02',
-                            message: `Invalid format for a field. Please check your input.`,
-                        });
-                    case '22001':
-                        // Log full details internally for debugging
-                        this.logger.error(
-                            `[DB Constraint Violation] String data too long in ${this.tableName}`,
-                            error,
-                            {
-                                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                                detail: driverError.detail,
-                                code: '22001',
-                                table: this.tableName,
-                            },
-                        );
-                        throw new BadRequestException({
-                            code: '22001',
-                            message: `The value provided for a field is too long. Please shorten the input.`,
-                        });
-                    default: {
-                        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                        const dbCode = driverError?.code as string | undefined;
-                        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                        const dbMessage = driverError?.message as string | undefined;
-                        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                        const dbDetail = driverError?.detail as string | undefined;
-                        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                        const dbHint = driverError?.hint as string | undefined;
-
-                        this.logger.error(
-                            `[DB Error] Unhandled database error code ${dbCode} in ${this.tableName}`,
-                            error,
-                            {
-                                detail: dbDetail,
-                                code: dbCode,
-                                hint: dbHint,
-                                table: this.tableName,
-                            },
-                        );
-
-                        throw new InternalServerErrorException({
-                            code: dbCode ?? 'DATABASE_ERROR',
-                            message: `Database error (${dbCode ?? 'UNKNOWN'}) on table ${this.tableName}: ${dbMessage ?? 'Unknown error'}`,
-                            detail: dbDetail,
-                        });
-                    }
-                }
+                const mapper = new PostgresErrorMapper(this.tableName, this.logger);
+                mapper.map(error.driverError as Record<string, string | undefined>);
             }
-            // Re-throw any other non-database errors.
+
             throw error;
         }
     }
@@ -882,7 +696,7 @@ export abstract class BaseServiceOperations<
         id: string,
         data: UpdateType,
         currentUser?: IUserSession | string,
-        options?: IUpdateOptions,
+        options?: UpdateOptions,
     ): Promise<TargetRepository> {
         return this.executeDbOperation(() =>
             this.typeOrmRepository.manager.transaction(async (transactionalManager) => {
@@ -979,7 +793,7 @@ export abstract class BaseServiceOperations<
                         // - Explicit children array (even empty): apply orphan handling with defaults
                         if (explicitlySetOneToMany.has(rel.propertyName)) {
                             // Resolve options with defaults
-                            const resolvedOptions = new IUpdateOptions(options);
+                            const resolvedOptions = new UpdateOptions(options);
 
                             if (
                                 resolvedOptions.hardDeleteOneToMany === true ||
@@ -1023,7 +837,7 @@ export abstract class BaseServiceOperations<
                                                 typeof currentUser === 'string'
                                                     ? currentUser
                                                     : currentUser?.id,
-                                        } as QueryDeepPartialEntity<ObjectLiteral>);
+                                        });
                                     }
                                 }
                             }
@@ -1210,7 +1024,7 @@ export abstract class BaseServiceOperations<
  * Defines the configuration options specifically for the logger.
  */
 export interface LoggerOptions {
-    logger: Logger;
+    logger: ILogger;
     serviceName?: string;
     serviceVersion?: string;
 }
@@ -1239,7 +1053,7 @@ export interface BaseServiceOptions {
  *
  * Priority: `hardDeleteOneToMany` beats `softDeleteOneToMany` when both are true.
  */
-export class IUpdateOptions {
+export class UpdateOptions {
     /**
      * Permanently DELETE orphaned child rows from the database.
      * @default false
@@ -1259,7 +1073,7 @@ export class IUpdateOptions {
      */
     softDeleteOneToMany?: boolean = true;
 
-    constructor(partial?: Partial<IUpdateOptions>) {
+    constructor(partial?: Partial<UpdateOptions>) {
         if (partial) {
             Object.assign(this, partial);
         }

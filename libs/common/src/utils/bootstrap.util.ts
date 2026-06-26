@@ -80,7 +80,7 @@ async function applySecurity(
     security?: SecurityOptions,
 ): Promise<void> {
     const corsOrigin =
-        (security?.cors?.origin as string | string[] | undefined) ??
+        (security?.cors?.origin) ??
         configService.get<string>('CORS_ORIGIN') ??
         '*';
     app.enableCors({ origin: corsOrigin });
@@ -177,7 +177,7 @@ function setupApiDocs(
             persistAuth: true,
             showSidebar: true,
             searchHotKey: 'k',
-        } as unknown as NestJSReferenceConfiguration),
+        }),
     );
 
     SwaggerModule.setup(classicDocsPath, app, document, {
@@ -255,7 +255,7 @@ export async function bootstrapApplication(
 
     const adapter = new FastifyAdapter({ trustProxy: true, logger: false });
     const app = await NestFactory.create<NestFastifyApplication>(
-        options.module as Type<unknown>,
+        options.module,
         adapter,
         { rawBody: true },
     );

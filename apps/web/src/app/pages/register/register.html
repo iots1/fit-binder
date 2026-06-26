@@ -8,9 +8,9 @@
       <span class="text-xl font-bold tracking-tight">FitBinder</span>
     </div>
     <div>
-      <h1 class="text-4xl font-bold leading-tight">Train smarter.<br />Bind every rep.</h1>
+      <h1 class="text-4xl font-bold leading-tight">Start your<br />studio journey.</h1>
       <p class="mt-4 max-w-md text-brand-100">
-        Manage trainers, trainees, packages, appointments and health history — all in one place.
+        Create an account to manage trainers, trainees, packages and appointments.
       </p>
     </div>
     <p class="text-sm text-brand-200">© 2026 FitBinder</p>
@@ -19,16 +19,23 @@
   <!-- Form panel -->
   <div class="flex w-full items-center justify-center p-6 lg:w-1/2">
     <div class="w-full max-w-sm">
-      <div class="mb-8 lg:hidden">
-        <span class="text-2xl font-bold text-brand-700">FitBinder</span>
-      </div>
+      <h2 class="text-2xl font-semibold text-ink-900">Create account</h2>
+      <p class="mt-1 text-sm text-ink-500">It only takes a moment.</p>
 
-      <h2 class="text-2xl font-semibold text-ink-900">Welcome back</h2>
-      <p class="mt-1 text-sm text-ink-500">Sign in to your account to continue.</p>
-
-      <form [formGroup]="form" (ngSubmit)="submit()" class="mt-8 space-y-5">
+      <form [formGroup]="form" (ngSubmit)="submit()" class="mt-8 space-y-4">
         <div>
-          <label class="mb-1.5 block text-sm font-medium text-ink-700">Username or email</label>
+          <label class="mb-1.5 block text-sm font-medium text-ink-700">Full name</label>
+          <input
+            type="text"
+            formControlName="full_name"
+            autocomplete="name"
+            placeholder="Somchai Jaidee"
+            class="w-full rounded-lg border border-ink-300 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+          />
+        </div>
+
+        <div>
+          <label class="mb-1.5 block text-sm font-medium text-ink-700">Username</label>
           <input
             type="text"
             formControlName="username"
@@ -37,7 +44,21 @@
             class="w-full rounded-lg border border-ink-300 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
           />
           @if (form.controls.username.touched && form.controls.username.invalid) {
-            <p class="mt-1 text-xs text-red-600">Username is required.</p>
+            <p class="mt-1 text-xs text-red-600">At least 3 characters.</p>
+          }
+        </div>
+
+        <div>
+          <label class="mb-1.5 block text-sm font-medium text-ink-700">Email</label>
+          <input
+            type="email"
+            formControlName="email"
+            autocomplete="email"
+            placeholder="somchai@fitbinder.app"
+            class="w-full rounded-lg border border-ink-300 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+          />
+          @if (form.controls.email.touched && form.controls.email.invalid) {
+            <p class="mt-1 text-xs text-red-600">Enter a valid email.</p>
           }
         </div>
 
@@ -46,12 +67,12 @@
           <input
             type="password"
             formControlName="password"
-            autocomplete="current-password"
+            autocomplete="new-password"
             placeholder="••••••••"
             class="w-full rounded-lg border border-ink-300 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
           />
           @if (form.controls.password.touched && form.controls.password.invalid) {
-            <p class="mt-1 text-xs text-red-600">Password must be at least 6 characters.</p>
+            <p class="mt-1 text-xs text-red-600">At least 8 characters.</p>
           }
         </div>
 
@@ -64,12 +85,12 @@
           [disabled]="loading()"
           class="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 focus:ring-2 focus:ring-brand-300 disabled:opacity-60"
         >
-          {{ loading() ? 'Signing in…' : 'Sign in' }}
+          {{ loading() ? 'Creating account…' : 'Create account' }}
         </button>
 
         <p class="text-center text-sm text-ink-500">
-          Don't have an account?
-          <a routerLink="/register" class="font-medium text-brand-700 hover:underline">Create one</a>
+          Already have an account?
+          <a routerLink="/login" class="font-medium text-brand-700 hover:underline">Sign in</a>
         </p>
       </form>
     </div>

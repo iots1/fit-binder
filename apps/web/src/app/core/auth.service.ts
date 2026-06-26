@@ -28,6 +28,15 @@ export class AuthService {
       .pipe(tap((tokens) => this.storeTokens(tokens)));
   }
 
+  register(payload: {
+    username: string;
+    email: string;
+    password: string;
+    full_name: string | null;
+  }): Observable<unknown> {
+    return this.http.post('/api/auth/v1/auth/register', payload);
+  }
+
   logout(): void {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);

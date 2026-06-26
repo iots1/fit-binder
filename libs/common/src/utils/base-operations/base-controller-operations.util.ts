@@ -5,7 +5,7 @@ import { IUserSession } from '@lib/common/interfaces/auth.interface';
 import { IResponsePaginatedService } from '@lib/common/interfaces/response/response-service.interface';
 import { ITimestamp } from '@lib/common/interfaces/timestamp.interface';
 
-import { BaseServiceOperations, IUpdateOptions } from './base-service-operations.util';
+import { BaseServiceOperations, UpdateOptions } from './base-service-operations.util';
 
 /**
  * Provides a generic, reusable base for CRUD controllers.
@@ -89,7 +89,7 @@ export abstract class BaseControllerOperations<
         id: string,
         updateDTO: UpdateDTO,
         currentUser?: IUserSession,
-        options?: IUpdateOptions,
+        options?: UpdateOptions,
     ): Promise<EntityType> {
         return this.service.update(id, updateDTO, currentUser, options);
     }

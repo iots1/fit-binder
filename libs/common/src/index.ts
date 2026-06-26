@@ -66,6 +66,7 @@ export * from './utils/http-exception/validation.exception';
 export * from './utils/http-exception/invalid-parameter.exception';
 export * from './utils/http-exception/all-exceptions-filter.util';
 export * from './utils/http-exception/rpc-exceptions-filter.util';
+export * from './utils/http-exception/postgres-error-mapper.util';
 
 // Utils — transforms
 export * from './utils/dto-transforms.util';

@@ -1,6 +1,6 @@
 import { Injectable, Logger as NestLogger, Scope } from '@nestjs/common';
 
-import { Logger } from '@lib/common/modules/log/abstracts/logger.abstract';
+import { ILogger } from '@lib/common/modules/log/abstracts/logger.abstract';
 import type {
     ICallContext,
     ILogData,
@@ -14,7 +14,7 @@ import type {
  * (and {@link BaseServiceOperations}) depend only on the abstraction.
  */
 @Injectable({ scope: Scope.TRANSIENT })
-export class LogsService implements Logger {
+export class LogsService implements ILogger {
     private readonly logger = new NestLogger('app');
     private context = 'app';
     private callContext: Partial<ICallContext> = {};
@@ -49,7 +49,7 @@ export class LogsService implements Logger {
 
     private format(logData: ILogData): string {
         const trace = this.callContext.trace?.trace_id;
-        return trace ? `[${trace}] ${logData.message}` : logData.message;
+        return trace != null ? `[${trace}] ${logData.message}` : logData.message;
     }
 }
 
@@ -57,23 +57,11 @@ export class LogsService implements Logger {
  * No-op logger (Null Object pattern). Used as the default in
  * {@link BaseServiceOperations} when a service is constructed without logging.
  */
-export class NoOpLogsService implements Logger {
-    setContext(_serviceName: string, _serviceVersion: string): void {
-        /* no-op */
-    }
-    setContextFromPayload(_context: ICallContext): void {
-        /* no-op */
-    }
-    info(_logData: ILogData): void {
-        /* no-op */
-    }
-    warn(_logData: ILogData): void {
-        /* no-op */
-    }
-    error(_message: string, _error?: Error, _context?: Record<string, unknown>): void {
-        /* no-op */
-    }
-    debug(_logData: ILogData): void {
-        /* no-op */
-    }
+export class NoOpLogsService implements ILogger {
+    setContext(): void { /* no-op */ }
+    setContextFromPayload(): void { /* no-op */ }
+    info(): void { /* no-op */ }
+    warn(): void { /* no-op */ }
+    error(): void { /* no-op */ }
+    debug(): void { /* no-op */ }
 }

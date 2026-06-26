@@ -222,7 +222,7 @@ export class TypeOrmQueryBuilder<T extends ObjectLiteral> {
         const hasAndConditions = Object.keys(andConditions).length > 0;
         const hasOrConditions = orConditions.length > 0;
 
-        if (!hasAndConditions && !hasOrConditions) return {} as FindOptionsWhere<T>;
+        if (!hasAndConditions && !hasOrConditions) return {};
         if (!hasOrConditions) return andConditions;
         if (!hasAndConditions) return orConditions;
 
@@ -288,11 +288,11 @@ export class TypeOrmQueryBuilder<T extends ObjectLiteral> {
         const searchParam = this.query?.s;
 
         if (searchParam === undefined || searchParam === null) {
-            return {} as FindOptionsWhere<T>;
+            return {};
         }
 
         if (typeof searchParam !== 'string' && typeof searchParam !== 'object') {
-            return {} as FindOptionsWhere<T>;
+            return {};
         }
 
         try {
@@ -340,7 +340,7 @@ export class TypeOrmQueryBuilder<T extends ObjectLiteral> {
     private buildSearchWhereClause(conditions: Record<string, unknown>): FindOptionsWhere<T> {
         this.validateFieldNamesRecursive(Object.keys(conditions));
 
-        let where: FindOptionsWhere<T> = {} as FindOptionsWhere<T>;
+        let where: FindOptionsWhere<T> = {};
 
         for (const key of Object.keys(conditions)) {
             const condition = conditions[key];
@@ -368,7 +368,7 @@ export class TypeOrmQueryBuilder<T extends ObjectLiteral> {
 
             if (key.includes('.')) {
                 this.setNestedValue(
-                    where as unknown as Record<string, unknown>,
+                    where,
                     key,
                     conditionValue,
                 );
@@ -503,7 +503,7 @@ export class TypeOrmQueryBuilder<T extends ObjectLiteral> {
     private parseFilterParameter(): FindOptionsWhere<T> {
         const filters = this.normalizeFilterInput();
 
-        if (filters.length === 0) return {} as FindOptionsWhere<T>;
+        if (filters.length === 0) return {};
 
         const parsedFilters = this.parseFilterStrings(filters);
 

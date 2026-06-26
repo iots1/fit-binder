@@ -1,0 +1,73 @@
+<div class="flex min-h-screen bg-ink-100">
+  <!-- Sidebar -->
+  <aside
+    class="sticky top-0 flex h-screen flex-col border-r border-ink-200 bg-white transition-all duration-200"
+    [class.w-64]="!collapsed()"
+    [class.w-20]="collapsed()"
+  >
+    <div class="flex h-16 items-center gap-3 border-b border-ink-200 px-5">
+      <div class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-600 text-lg text-white">
+        🏋️
+      </div>
+      @if (!collapsed()) {
+        <span class="text-lg font-bold tracking-tight text-ink-900">FitBinder</span>
+      }
+    </div>
+
+    <nav class="flex-1 space-y-1 px-3 py-4">
+      @for (item of nav; track item.path) {
+        <a
+          [routerLink]="item.path"
+          routerLinkActive="bg-brand-50 text-brand-700"
+          #rla="routerLinkActive"
+          class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-ink-600 transition hover:bg-ink-100"
+          [class.justify-center]="collapsed()"
+          [title]="item.label"
+        >
+          <span class="text-lg">{{ item.icon }}</span>
+          @if (!collapsed()) {
+            <span>{{ item.label }}</span>
+          }
+        </a>
+      }
+    </nav>
+
+    <button
+      (click)="logout()"
+      class="m-3 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-ink-600 transition hover:bg-red-50 hover:text-red-600"
+      [class.justify-center]="collapsed()"
+    >
+      <span class="text-lg">🚪</span>
+      @if (!collapsed()) {
+        <span>Logout</span>
+      }
+    </button>
+  </aside>
+
+  <!-- Main column -->
+  <div class="flex min-w-0 flex-1 flex-col">
+    <!-- Topbar -->
+    <header
+      class="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-ink-200 bg-white/80 px-6 backdrop-blur"
+    >
+      <button
+        (click)="toggle()"
+        class="grid h-9 w-9 place-items-center rounded-lg text-ink-500 transition hover:bg-ink-100"
+        aria-label="Toggle sidebar"
+      >
+        ☰
+      </button>
+
+      <div class="flex items-center gap-3">
+        <div class="grid h-9 w-9 place-items-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
+          FB
+        </div>
+      </div>
+    </header>
+
+    <!-- Routed content -->
+    <main class="flex-1 p-6">
+      <router-outlet />
+    </main>
+  </div>
+</div>

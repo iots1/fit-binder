@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
-import { Response } from 'express';
+import { FastifyReply } from 'fastify';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
@@ -47,18 +47,17 @@ export class TransformInterceptor implements NestInterceptor {
                     return data;
                 }
 
-                const response = context.switchToHttp().getResponse<Response>();
+                const response = context.switchToHttp().getResponse<FastifyReply>();
                 const statusCode = Number(response.statusCode);
 
                 const request = context.switchToHttp().getRequest<{
                     protocol?: string;
-                    get?: (header: string) => string | undefined;
-                    host?: string;
-                    path?: string;
+                    hostname?: string;
+                    url?: string;
                 }>();
                 const protocol = request.protocol ?? 'http';
-                const host = request.get?.('host') ?? request.host ?? '';
-                const path = request.path ?? '';
+                const host = request.hostname ?? '';
+                const path = request.url ?? '';
                 const baseUrl = `${protocol}://${host}${path}`;
 
                 const isPaginatedData = (value: unknown): value is PaginatedData => {

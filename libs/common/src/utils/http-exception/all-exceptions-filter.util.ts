@@ -7,7 +7,7 @@ import {
     Logger,
 } from '@nestjs/common';
 
-import { Response } from 'express';
+import { FastifyReply } from 'fastify';
 import { QueryFailedError } from 'typeorm';
 
 import { IErrorObject } from '@lib/common/interfaces/response/error-object.interface';
@@ -49,11 +49,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     catch(exception: unknown, host: ArgumentsHost): void {
         const ctx = host.switchToHttp();
-        const response = ctx.getResponse<Response>();
+        const response = ctx.getResponse<FastifyReply>();
 
         // --- 1. Invalid query-parameter format ---
         if (exception instanceof InvalidParameterException) {
-            response.status(exception.getStatus()).json({
+            void response.status(exception.getStatus()).send({
                 status: { code: 400002, message: 'Invalid Parameters' },
                 errors: exception.validationErrors.map((error: IErrorObject) => ({
                     code: 'INVALID_PARAMETER_FORMAT',
@@ -68,7 +68,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
         // --- 2. DTO validation failures ---
         if (exception instanceof ValidationException) {
-            response.status(exception.getStatus()).json({
+            void response.status(exception.getStatus()).send({
                 status: { code: 400001, message: 'Validation Failed' },
                 errors: exception.validationErrors.flatMap((error) =>
                     error.messages.map((message) => ({
@@ -107,7 +107,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
                 customStatusCode = (r['status'] as string | undefined) ?? null;
             }
 
-            response.status(status).json({
+            void response.status(status).send({
                 status: {
                     code: customStatusCode ?? status,
                     message: exception.message,
@@ -131,7 +131,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
             this.logger.error(`QueryFailedError: ${exception.message}`, exception.stack);
 
             const status = HttpStatus.UNPROCESSABLE_ENTITY;
-            response.status(status).json({
+            void response.status(status).send({
                 status: { code: status, message: 'Database Query Error' },
                 errors: [
                     {
@@ -153,7 +153,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         this.logger.error(`Unhandled Exception: ${errorMessage}`, errorStack);
 
         const status = HttpStatus.INTERNAL_SERVER_ERROR;
-        response.status(status).json({
+        void response.status(status).send({
             status: { code: status, message: 'Internal Server Error' },
             errors: [
                 {

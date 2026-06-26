@@ -1,18 +1,17 @@
 import { ClassSerializerInterceptor, Type, ValidationError, ValidationPipe } from '@nestjs/common';
-import { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { NestExpressApplication } from '@nestjs/platform-express';
+import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { apiReference, NestJSReferenceConfiguration } from '@scalar/nestjs-api-reference';
+import fastifyHelmet from '@fastify/helmet';
+import fastifyRateLimit from '@fastify/rate-limit';
 import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone';
 import utc from 'dayjs/plugin/utc';
-import { Request, Response } from 'express';
-import { rateLimit } from 'express-rate-limit';
-import helmet from 'helmet';
+import { FastifyReply, FastifyRequest } from 'fastify';
 
 import { AllExceptionsFilter } from '@lib/common/utils/http-exception/all-exceptions-filter.util';
 import { RpcExceptionsFilter } from '@lib/common/utils/http-exception/rpc-exceptions-filter.util';
@@ -38,7 +37,7 @@ export interface RateLimitOptions {
 export interface SecurityOptions {
     helmet?: boolean;
     rateLimit?: RateLimitOptions | false;
-    cors?: CorsOptions;
+    cors?: { origin?: string | string[] };
 }
 
 export interface BootstrapOptions {
@@ -75,54 +74,46 @@ function initializeTimezone(): void {
     dayjs.tz.setDefault('Asia/Bangkok');
 }
 
-function applySecurity(
-    app: NestExpressApplication,
+async function applySecurity(
+    app: NestFastifyApplication,
     configService: ConfigService,
     security?: SecurityOptions,
-): void {
-    app.enableCors(
-        security?.cors ?? {
-            origin: configService.get<string>('CORS_ORIGIN') ?? '*',
-        },
-    );
-    app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
+): Promise<void> {
+    const corsOrigin =
+        (security?.cors?.origin as string | string[] | undefined) ??
+        configService.get<string>('CORS_ORIGIN') ??
+        '*';
+    app.enableCors({ origin: corsOrigin });
 
     if (security?.helmet !== false) {
-        app.use(helmet({ contentSecurityPolicy: false }));
+        await app.register(fastifyHelmet, { contentSecurityPolicy: false });
     }
 
     if (security?.rateLimit !== false) {
         const opts = security?.rateLimit ?? {};
-        app.use(
-            rateLimit({
-                windowMs:
-                    configService.get<number>('RATE_LIMIT_WINDOW_MS') ??
-                    opts.windowMs ??
-                    15 * 60 * 1000,
-                max: configService.get<number>('RATE_LIMIT_MAX') ?? opts.max ?? 10000,
-                message: opts.message ?? 'Too many requests, please try again later.',
-                standardHeaders: true,
-                legacyHeaders: false,
-                handler: (req: Request, res: Response) => {
-                    res.status(429).json({
-                        status: { code: 429, message: 'Too Many Requests' },
-                        errors: [
-                            {
-                                code: 'TOO_MANY_REQUESTS',
-                                title: 'Too Many Requests',
-                                detail: 'Too many requests, please try again later.',
-                            },
-                        ],
-                        meta: { timestamp: new Date().toISOString() },
-                    });
-                },
+        await app.register(fastifyRateLimit, {
+            max: configService.get<number>('RATE_LIMIT_MAX') ?? opts.max ?? 10000,
+            timeWindow:
+                configService.get<number>('RATE_LIMIT_WINDOW_MS') ??
+                opts.windowMs ??
+                15 * 60 * 1000,
+            errorResponseBuilder: () => ({
+                status: { code: 429, message: 'Too Many Requests' },
+                errors: [
+                    {
+                        code: 'TOO_MANY_REQUESTS',
+                        title: 'Too Many Requests',
+                        detail: opts.message ?? 'Too many requests, please try again later.',
+                    },
+                ],
+                meta: { timestamp: new Date().toISOString() },
             }),
-        );
+        });
     }
 }
 
 function registerGlobalMiddleware(
-    app: NestExpressApplication,
+    app: NestFastifyApplication,
     reflector: Reflector,
     forbidNonWhitelisted: boolean,
 ): void {
@@ -148,7 +139,7 @@ function registerGlobalMiddleware(
 }
 
 function setupApiDocs(
-    app: NestExpressApplication,
+    app: NestFastifyApplication,
     options: BootstrapOptions,
     pathURI: string,
 ): { fullDocsPath: string; classicDocsPath: string } {
@@ -198,30 +189,32 @@ function setupApiDocs(
         },
     });
 
-    app.getHttpAdapter().get(jsonDocsPath, (_req: Request, res: Response) => {
-        res.setHeader('Content-Type', 'application/json');
-        res.send(document);
+    app.getHttpAdapter().get(jsonDocsPath, (_req: FastifyRequest, reply: FastifyReply) => {
+        void reply.header('Content-Type', 'application/json').send(document);
     });
 
     return { fullDocsPath, classicDocsPath };
 }
 
 function registerHealthCheck(
-    app: NestExpressApplication,
+    app: NestFastifyApplication,
     pathURI: string,
     moduleName: string,
 ): void {
-    app.getHttpAdapter().get(`/${pathURI}/health`, (_req: Request, res: Response) => {
-        res.status(200).json({
-            status: 'ok',
-            message: `Service ${moduleName} is running`,
-            timestamp: new Date().toISOString(),
-        });
-    });
+    app.getHttpAdapter().get(
+        `/${pathURI}/health`,
+        (_req: FastifyRequest, reply: FastifyReply) => {
+            void reply.status(200).send({
+                status: 'ok',
+                message: `Service ${moduleName} is running`,
+                timestamp: new Date().toISOString(),
+            });
+        },
+    );
 }
 
 async function setupMicroservice(
-    app: NestExpressApplication,
+    app: NestFastifyApplication,
     configService: ConfigService,
     moduleName: string,
     microservicePortEnv: string,
@@ -257,17 +250,20 @@ function resolveHttpPort(configService: ConfigService, httpPortEnv: string): num
 
 export async function bootstrapApplication(
     options: BootstrapOptions,
-): Promise<NestExpressApplication> {
+): Promise<NestFastifyApplication> {
     initializeTimezone();
 
-    const app = await NestFactory.create<NestExpressApplication>(options.module as Type<unknown>, {
-        rawBody: true,
-    });
+    const adapter = new FastifyAdapter({ trustProxy: true, logger: false });
+    const app = await NestFactory.create<NestFastifyApplication>(
+        options.module as Type<unknown>,
+        adapter,
+        { rawBody: true },
+    );
     const configService = app.get(ConfigService);
     const reflector = app.get(Reflector);
     const moduleName = (options.module as { name: string }).name;
 
-    applySecurity(app, configService, options.security);
+    await applySecurity(app, configService, options.security);
 
     const listenPORT = resolveHttpPort(configService, options.httpPortEnv);
     const globalPrefixName =
@@ -287,7 +283,7 @@ export async function bootstrapApplication(
         await setupMicroservice(app, configService, moduleName, options.microservicePortEnv);
     }
 
-    await app.listen(listenPORT);
+    await app.listen(listenPORT, '0.0.0.0');
 
     console.log(`🚀 [${moduleName}] HTTP running on: http://localhost:${listenPORT}/${pathURI}`);
     console.log(

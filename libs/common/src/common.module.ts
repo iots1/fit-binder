@@ -1,6 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
-import { ClientProvider, ClientsModule, Transport } from '@nestjs/microservices';
+import { ClientProvider, ClientsModule } from '@nestjs/microservices';
 
 import { AppMicroservice } from '@lib/common/enum/app-microservice.enum';
 import { LogModule } from '@lib/common/modules/log/log.module';
@@ -36,7 +36,7 @@ import { ConfigModule, ConfigService } from '@lib/config';
                 imports: [ConfigModule],
                 inject: [ConfigService],
                 useFactory: (configService: ConfigService): ClientProvider => ({
-                    transport: Transport.TCP,
+                    transport: service.transport,
                     options: {
                         host: configService.get<string>(service.hostEnv, 'localhost'),
                         port: configService.get<number>(service.portEnv),

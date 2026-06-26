@@ -11,7 +11,6 @@
     "target": "ES2023",
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,
@@ -22,14 +21,14 @@
     "strictPropertyInitialization": false,
     "types": ["node", "jest"],
     "paths": {
-      "@apps/*": ["apps/*"],
-      "@lib/common": ["libs/common/src"],
-      "@lib/common/*": ["libs/common/src/*"],
-      "@lib/config": ["libs/config/src"],
-      "@lib/config/*": ["libs/config/src/*"],
-      "@lib/database": ["libs/database/src"],
-      "@lib/database/*": ["libs/database/src/*"]
+      "@apps/*": ["./apps/*"],
+      "@lib/common": ["./libs/common/src"],
+      "@lib/common/*": ["./libs/common/src/*"],
+      "@lib/config": ["./libs/config/src"],
+      "@lib/config/*": ["./libs/config/src/*"],
+      "@lib/database": ["./libs/database/src"],
+      "@lib/database/*": ["./libs/database/src/*"]
     }
   },
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "apps/web"]
 }

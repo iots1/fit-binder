@@ -174,6 +174,7 @@ function setupApiDocs(
             persistAuth: true,
             showSidebar: true,
             searchHotKey: 'k',
+            withFastify: true,
         }),
     );
 

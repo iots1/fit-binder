@@ -25,7 +25,7 @@ import { IResponsePaginatedService } from '@lib/common/interfaces/response/respo
 import { ISoftDeletable } from '@lib/common/interfaces/soft-deletable.interface';
 import { ITimestamp } from '@lib/common/interfaces/timestamp.interface';
 import { ILogger } from '@lib/common/modules/log/abstracts/logger.abstract';
-import { LogsService, NoOpLogsService } from '@lib/common/modules/log/logs.service';
+import { NoOpLogsService } from '@lib/common/modules/log/logs.service';
 import { PostgresErrorMapper } from '@lib/common/utils/http-exception/postgres-error-mapper.util';
 
 import { TypeOrmQueryBuilder } from './typeorm-query-builder.util';

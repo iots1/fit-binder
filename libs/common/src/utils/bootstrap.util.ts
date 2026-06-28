@@ -5,9 +5,9 @@ import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
-import { apiReference, NestJSReferenceConfiguration } from '@scalar/nestjs-api-reference';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyRateLimit from '@fastify/rate-limit';
+import { apiReference } from '@scalar/nestjs-api-reference';
 import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone';
 import utc from 'dayjs/plugin/utc';
@@ -79,10 +79,7 @@ async function applySecurity(
     configService: ConfigService,
     security?: SecurityOptions,
 ): Promise<void> {
-    const corsOrigin =
-        (security?.cors?.origin) ??
-        configService.get<string>('CORS_ORIGIN') ??
-        '*';
+    const corsOrigin = security?.cors?.origin ?? configService.get<string>('CORS_ORIGIN') ?? '*';
     app.enableCors({ origin: corsOrigin });
 
     if (security?.helmet !== false) {
@@ -173,7 +170,7 @@ function setupApiDocs(
     app.use(
         fullDocsPath,
         apiReference({
-            spec: { url: jsonDocsPath },
+            url: jsonDocsPath,
             persistAuth: true,
             showSidebar: true,
             searchHotKey: 'k',
@@ -201,16 +198,13 @@ function registerHealthCheck(
     pathURI: string,
     moduleName: string,
 ): void {
-    app.getHttpAdapter().get(
-        `/${pathURI}/health`,
-        (_req: FastifyRequest, reply: FastifyReply) => {
-            void reply.status(200).send({
-                status: 'ok',
-                message: `Service ${moduleName} is running`,
-                timestamp: new Date().toISOString(),
-            });
-        },
-    );
+    app.getHttpAdapter().get(`/${pathURI}/health`, (_req: FastifyRequest, reply: FastifyReply) => {
+        void reply.status(200).send({
+            status: 'ok',
+            message: `Service ${moduleName} is running`,
+            timestamp: new Date().toISOString(),
+        });
+    });
 }
 
 async function setupMicroservice(
@@ -254,11 +248,9 @@ export async function bootstrapApplication(
     initializeTimezone();
 
     const adapter = new FastifyAdapter({ trustProxy: true, logger: false });
-    const app = await NestFactory.create<NestFastifyApplication>(
-        options.module,
-        adapter,
-        { rawBody: true },
-    );
+    const app = await NestFactory.create<NestFastifyApplication>(options.module, adapter, {
+        rawBody: true,
+    });
     const configService = app.get(ConfigService);
     const reflector = app.get(Reflector);
     const moduleName = (options.module as { name: string }).name;

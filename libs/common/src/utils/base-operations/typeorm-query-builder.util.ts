@@ -47,10 +47,22 @@ dayjs.extend(timezone);
 // TYPE DEFINITIONS
 // ============================================================================
 
-type SearchOperator = '>' | '>=' | '<' | '<=' | '!=' | 'like' | 'in' | 'between';
+type SearchOperator =
+    | '>'
+    | '>='
+    | '<'
+    | '<='
+    | '!='
+    | 'ieq'
+    | 'cont'
+    | 'starts'
+    | 'ends'
+    | 'in'
+    | 'between';
 
 type FilterOperator =
     | '$eq'
+    | '$ieq'
     | '$ne'
     | '$gt'
     | '$lt'
@@ -121,6 +133,12 @@ export class TypeOrmQueryBuilder<T extends ObjectLiteral> {
         this.applyExclusions(findOptions);
         this.applyRelations(findOptions, allowedRelations);
         this.applyFieldSelection(findOptions);
+
+        // Use separate IN-queries per relation instead of a single JOIN.
+        // Avoids Cartesian-product row explosion when multiple OneToMany
+        // relations are loaded simultaneously (e.g. visits with orders,
+        // assessments, group_orders, and diagnoses).
+        findOptions.relationLoadStrategy = 'query';
 
         return findOptions;
     }
@@ -354,9 +372,7 @@ export class TypeOrmQueryBuilder<T extends ObjectLiteral> {
                         jsonPath,
                         condition,
                     );
-                    const singleCondition: Record<string, unknown> = {
-                        [column]: conditionValue,
-                    };
+                    const singleCondition: Record<string, unknown> = { [column]: conditionValue };
                     where = this.deepMerge(where, singleCondition as FindOptionsWhere<T>);
                 }
                 continue;
@@ -367,11 +383,7 @@ export class TypeOrmQueryBuilder<T extends ObjectLiteral> {
             const conditionValue = this.buildConditionValue(condition, isDateColumn);
 
             if (key.includes('.')) {
-                this.setNestedValue(
-                    where,
-                    key,
-                    conditionValue,
-                );
+                this.setNestedValue(where, key, conditionValue);
             } else {
                 (where as Record<string, unknown>)[key] = conditionValue;
             }
@@ -473,8 +485,14 @@ export class TypeOrmQueryBuilder<T extends ObjectLiteral> {
                 return LessThanOrEqual(value);
             case '!=':
                 return Not(value);
-            case 'like':
+            case 'cont':
                 return ILike(`%${String(value)}%`);
+            case 'ieq':
+                return ILike(String(value));
+            case 'starts':
+                return ILike(`${String(value)}%`);
+            case 'ends':
+                return ILike(`%${String(value)}`);
             case 'in':
                 return In(Array.isArray(value) ? value : [value]);
             case 'between':
@@ -650,9 +668,7 @@ export class TypeOrmQueryBuilder<T extends ObjectLiteral> {
                         operator,
                         value,
                     );
-                    const singleCondition: Record<string, unknown> = {
-                        [column]: operatorValue,
-                    };
+                    const singleCondition: Record<string, unknown> = { [column]: operatorValue };
                     where = this.deepMerge(where, singleCondition as FindOptionsWhere<T>);
                 }
                 continue;
@@ -732,6 +748,8 @@ export class TypeOrmQueryBuilder<T extends ObjectLiteral> {
         switch (operator) {
             case '$eq':
                 return value;
+            case '$ieq':
+                return ILike(value);
             case '$ne':
                 return Not(value);
             case '$gt':
@@ -1246,15 +1264,21 @@ export class TypeOrmQueryBuilder<T extends ObjectLiteral> {
         switch (operator) {
             case '!=':
                 return '$ne';
-            case 'like':
+            case 'cont':
                 return '$cont';
+            case 'ieq':
+                return '$ieq';
+            case 'starts':
+                return '$starts';
+            case 'ends':
+                return '$ends';
             case 'in':
                 return '$in';
             default:
                 throw new InvalidParameterException([
                     {
                         field: 's',
-                        message: `Search operator '${operator}' is not supported for JSONB fields. Supported: !=, like, in.`,
+                        message: `Search operator '${operator}' is not supported for JSONB fields. Supported: !=, cont, ieq, starts, ends, in.`,
                     },
                 ]);
         }
@@ -1294,9 +1318,7 @@ export class TypeOrmQueryBuilder<T extends ObjectLiteral> {
         if (primaryColumn === undefined) return;
         const pkName = primaryColumn.propertyName;
 
-        const exclusionCondition = {
-            [pkName]: Not(In(excludeIds)),
-        } as FindOptionsWhere<T>;
+        const exclusionCondition = { [pkName]: Not(In(excludeIds)) } as FindOptionsWhere<T>;
 
         if (!findOptions.where) {
             findOptions.where = exclusionCondition;

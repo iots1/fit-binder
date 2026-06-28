@@ -1,8 +1,4 @@
-import {
-    BadRequestException,
-    ConflictException,
-    NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 
 import {
     DeepPartial,
@@ -248,10 +244,8 @@ export abstract class BaseServiceOperations<
         query: QueryParamsDTO,
     ): Promise<{ data: TargetRepository[]; pagination: IPagination }> {
         const safeQuery = query ?? {};
-        // Delegate all parsing and option building to the dedicated builder class.
         const queryBuilder = new TypeOrmQueryBuilder(this.typeOrmRepository, safeQuery);
         const findOptions = queryBuilder.build(this.getFinalAllowedRelations());
-        const totalRecord = await this.typeOrmRepository.count();
 
         // Handle soft delete filter + where clause merge
         // Case 1: where is an array (OR conditions from query.or)
@@ -268,27 +262,19 @@ export abstract class BaseServiceOperations<
             } as FindOptionsWhere<TargetRepository>;
         }
 
-        // ---------------------------------------------------------
-        // enhance case : use for dropdown list
-        // ---------------------------------------------------------
-        if (safeQuery.ignore_limit === true) {
-            //over write value : findOptions.take
-            findOptions.take = totalRecord;
-        }
         const limit = findOptions.take ?? 10;
         const page = Number(safeQuery.page) || 1;
 
         // ---------------------------------------------------------
         // enhance case : get_count_only mode
-        // Returns only count without fetching actual data (faster, less bandwidth)
-        // - data: empty array []
-        // - total: count matching the filter
-        // - total_records: total count in the table (ignoring filters)
         // ---------------------------------------------------------
         if (safeQuery.get_count_only === true) {
-            const total = await this.typeOrmRepository.count({
-                where: findOptions.where,
-            });
+            const [total, totalRecord] = await Promise.all([
+                this.typeOrmRepository.count({ where: findOptions.where }),
+                this.typeOrmRepository.count({
+                    where: this.softDeleteFilter as FindOptionsWhere<TargetRepository>,
+                }),
+            ]);
 
             return {
                 data: [],
@@ -302,7 +288,34 @@ export abstract class BaseServiceOperations<
             };
         }
 
-        const [entities, total] = await this.typeOrmRepository.findAndCount(findOptions);
+        // ignore_limit: fetch all rows — must know totalRecord before setting take
+        if (safeQuery.ignore_limit === true) {
+            const totalRecord = await this.typeOrmRepository.count({
+                where: this.softDeleteFilter as FindOptionsWhere<TargetRepository>,
+            });
+            findOptions.take = totalRecord;
+            const [entities, total] = await this.typeOrmRepository.findAndCount(findOptions);
+
+            return {
+                data: entities,
+                pagination: {
+                    page: page,
+                    page_size: totalRecord,
+                    total,
+                    total_records: totalRecord,
+                    total_pages: 1,
+                },
+            };
+        }
+
+        // Normal paginated case: totalRecord count and data query are independent —
+        // run in parallel to save one sequential DB round-trip per request.
+        const [[entities, total], totalRecord] = await Promise.all([
+            this.typeOrmRepository.findAndCount(findOptions),
+            this.typeOrmRepository.count({
+                where: this.softDeleteFilter as FindOptionsWhere<TargetRepository>,
+            }),
+        ]);
 
         return {
             data: entities,
@@ -457,9 +470,7 @@ export abstract class BaseServiceOperations<
         }
 
         // ใช้ Type Assertion เพื่อแก้ปัญหา Generic Overload ของ TypeORM
-        return this.typeOrmRepository.save(
-            entitiesToSave as DeepPartial<TargetRepository>[],
-        );
+        return this.typeOrmRepository.save(entitiesToSave as DeepPartial<TargetRepository>[]);
     }
 
     /**
@@ -554,9 +565,7 @@ export abstract class BaseServiceOperations<
 
         // แก้ไข Type Predicate Error:
         // ใช้การตรวจสอบความมีอยู่จริงและ Cast กลับเป็น TargetRepository[] โดยตรง
-        return results.filter(
-            (entity) => entity !== undefined && entity !== null,
-        );
+        return results.filter((entity) => entity !== undefined && entity !== null);
     }
 
     /**
